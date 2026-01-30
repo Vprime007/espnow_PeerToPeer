@@ -62,6 +62,7 @@ static bool load_peer_infos(uint8_t *pMac_addr);
 static void erase_peer_infos(void);
 
 static bool postPairingRequest(void);
+static bool postFlushPeer(void);
 
 static uint16_t crc16(uint8_t *pBuffer, uint16_t len);
 
@@ -98,7 +99,7 @@ static QueueHandle_t espnow_tx_queue_handle = NULL;
 static QueueHandle_t espnow_rx_queue_handle = NULL;
 static TimerHandle_t espnow_timer_handle = NULL;
 
-static uint32_t pairing_max_attemps = 0;
+static uint32_t pairing_attemps = 0;
 
 /******************************************************************************
 *   Error Check
@@ -197,7 +198,7 @@ static void erase_peer_infos(void){
 *
 *   Side Effects: None.
 *
-*   \return     None.
+*   \return     Operation status.       (true -> OK, false -> not OK)
 *
 *******************************************************************************/
 static bool postPairingRequest(void){
@@ -220,7 +221,48 @@ static bool postPairingRequest(void){
 
     //Post tx packet to the queue
     if(pdTRUE != xQueueSend(espnow_tx_queue_handle, &packet_to_send, 0)){
+        //Free allocated ressources
+        free(pTx_msg);
+        pTx_msg = NULL;
 
+        return false;
+    }
+
+    return true;
+}
+
+/***************************************************************************//*!
+*  \brief Post a flush peer.
+*
+*   Post a flush peer to be sent via espnow.
+*   
+*   Preconditions: None.
+*
+*   Side Effects: None.
+*
+*   \return     Operation status.       (true -> OK, false -> not OK)
+*
+*******************************************************************************/
+static bool postFlushPeer(void){
+
+    ESPNOW_Cmd_Type_t cmd_type = ESPNOW_CMD_FLUSH_PEER;
+    uint16_t msg_crc = crc16((uint8_t*)&cmd_type, 1);
+
+    //Allocate buffer for tx msg
+    uint8_t *pTx_msg = malloc((ESPNOW_CMD_TYPE_SIZE+ESPNOW_CRC16_SIZE)*sizeof(uint8_t));
+    if(pTx_msg == NULL)     return false;
+
+    //Fill tx msg
+    memcpy(pTx_msg, &cmd_type, sizeof(cmd_type));
+    memcpy(pTx_msg+sizeof(cmd_type), &msg_crc, sizeof(msg_crc));
+
+    ESPNOW_Packet_t packet_to_send = {0};
+    memcpy(packet_to_send.mac_addr, peer_mac, sizeofof(peer_mac));
+    packet_to_send.len = ESPNOW_CMD_TYPE_SIZE+ESPNOW_CRC16_SIZE;
+    packet_to_send.pMsg = pTx_msg;
+
+    //Post tx packet to queue
+    if(pdTRUE != xQueueSend(espnow_tx_queue_handle, &packet_to_send, 0)){
         //Free allocated ressources
         free(pTx_msg);
         pTx_msg = NULL;
@@ -340,6 +382,10 @@ static void espnow_recv_callback(const esp_now_recv_info_t *pInfo,
                 return;
             }
 
+            xTimerStop(espnow_timer_handle, 10/portTICK_PERIOD_MS);
+            pairing_attemps = 0;//Reset pairing attemps
+
+
             //Add responder as peer
             esp_now_peer_info_t peer = {0};
             memcpy(peer.peer_addr, pInfo->src_addr, ESP_NOW_ETH_ALEN);
@@ -452,9 +498,9 @@ static void espnow_send_callback(const uint8_t *pMac_dest,
 
 static void pairingTimerCallback(TimerHandle_t xTimer){
 
-    if(pairing_max_attemps != 0)    pairing_max_attemps--;
+    if(pairing_attemps != 0)    pairing_attemps--;
 
-    if(pairing_max_attemps == 0){
+    if(pairing_attemps == 0){
 
         if(app_pairing_callback != NULL)    app_pairing_callback(peer_mac, ESPNOW_STATUS_NOT_PAIRED);
     }
@@ -465,8 +511,6 @@ static void pairingTimerCallback(TimerHandle_t xTimer){
         //Re-schedule the pairing timeout
         xTimerStart(espnow_timer_handle, 10/portTICK_PERIOD_MS);
     }
-
-    static uint32_t attemps = 0;
 }
 
 /***************************************************************************//*!
@@ -684,6 +728,9 @@ esp_err_t ESPNOW_FlushPeer(void){
     if(current_status == ESPNOW_STATUS_PAIRED){
 
         //Send a flush cmd to peer
+        if(!postFlushPeer()){
+            return ESP_FAIL;
+        }
 
         //Remove peer infos from nvs
         esp_now_del_peer(peer_mac);
