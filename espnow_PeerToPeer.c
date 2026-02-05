@@ -257,7 +257,7 @@ static bool postFlushPeer(void){
     memcpy(pTx_msg+sizeof(cmd_type), &msg_crc, sizeof(msg_crc));
 
     ESPNOW_Packet_t packet_to_send = {0};
-    memcpy(packet_to_send.mac_addr, peer_mac, sizeofof(peer_mac));
+    memcpy(packet_to_send.mac_addr, peer_mac, sizeof(peer_mac));
     packet_to_send.len = ESPNOW_CMD_TYPE_SIZE+ESPNOW_CRC16_SIZE;
     packet_to_send.pMsg = pTx_msg;
 
@@ -697,8 +697,8 @@ esp_err_t ESPNOW_StartPairing(uint32_t nb_attemps){
         
         current_status = ESPNOW_STATUS_PAIRING;//Update status to pairing
 
-        pairing_max_attemps = nb_attemps;
-        if(pairing_max_attemps > 0){
+        pairing_attemps = nb_attemps;
+        if(pairing_attemps > 0){
             //Start pairing timer
             xTimerStart(espnow_timer_handle, 10/portTICK_PERIOD_MS);
         }
