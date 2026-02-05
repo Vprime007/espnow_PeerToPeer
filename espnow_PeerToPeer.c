@@ -63,6 +63,7 @@ static void erase_peer_infos(void);
 
 static bool postPairingRequest(void);
 static bool postFlushPeer(void);
+static void stopPairing(void);
 
 static uint16_t crc16(uint8_t *pBuffer, uint16_t len);
 
@@ -232,7 +233,7 @@ static bool postPairingRequest(void){
 }
 
 /***************************************************************************//*!
-*  \brief Post a flush peer.
+*  \brief Post a flush peer command.
 *
 *   Post a flush peer to be sent via espnow.
 *   
@@ -271,6 +272,24 @@ static bool postFlushPeer(void){
     }
 
     return true;
+}
+
+/***************************************************************************//*!
+*  \brief Stop pairing process.
+*
+*   Stop the ongoing pairing process.
+*   
+*   Preconditions: None.
+*
+*   Side Effects: None.
+*
+*   \return None.
+*
+*******************************************************************************/
+static void stopPairing(void){
+
+    xTimerStop(espnow_timer_handle, 10/portTICK_PERIOD_MS);
+    pairing_attemps = 0;
 }
 
 /***************************************************************************//*!
@@ -328,6 +347,7 @@ static void espnow_recv_callback(const esp_now_recv_info_t *pInfo,
     uint16_t msg_crc = (pData[len-ESPNOW_CRC16_SIZE] << 8) + (pData[len-1]);
     if(calc_crc != msg_crc){
         //Invalid msg... do nothing...
+        return;
     }
 
     ESPNOW_Cmd_Type_t cmd_type = (ESPNOW_Cmd_Type_t)(pData[0]);
@@ -335,11 +355,14 @@ static void espnow_recv_callback(const esp_now_recv_info_t *pInfo,
     switch(cmd_type){
         case ESPNOW_CMD_PAIR_REQ:
         {   
-            //check if if we are acivel pairing
+            //check if if we are pairing
             if(current_status != ESPNOW_STATUS_PAIRING){
                 //Already paired... do nothing...
                 return;
             }
+
+            //Stop pairing timer
+            stopPairing();
 
             //Add initiator as peer
             esp_now_peer_info_t peer = {0};
@@ -377,14 +400,13 @@ static void espnow_recv_callback(const esp_now_recv_info_t *pInfo,
         case ESPNOW_CMD_PAIR_RESP:
         {   
             //Check if we are currently paired
-            if((current_status != ESPNOW_STATUS_NOT_PAIRED) && (current_status != ESPNOW_STATUS_PAIRING)){
+            if(current_status != ESPNOW_STATUS_PAIRING){
                 //Already paired... do nothing...
                 return;
             }
 
-            xTimerStop(espnow_timer_handle, 10/portTICK_PERIOD_MS);
-            pairing_attemps = 0;//Reset pairing attemps
-
+            //stop the pairing timer
+            stopPairing();
 
             //Add responder as peer
             esp_now_peer_info_t peer = {0};
@@ -481,7 +503,6 @@ static void espnow_recv_callback(const esp_now_recv_info_t *pInfo,
         }
         break;
     }
-
 }
 
 /***************************************************************************//*!
