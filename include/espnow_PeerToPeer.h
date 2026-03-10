@@ -8,7 +8,7 @@
 /******************************************************************************
 *   Public Definitions
 *******************************************************************************/
-#define ESPNOW_MAX_PAYLOAD_LEN_BYTE             (1467)//Bytes
+#define ESPNOW_MAX_PAYLOAD_LEN_BYTE             (1466)//Bytes
 
 /******************************************************************************
 *   Public Data Types
@@ -70,7 +70,7 @@ esp_err_t ESPNOW_InitDriver(uint8_t task_priority,
 /***************************************************************************//*!
 *  \brief Start pairing.
 *
-*   Start the pairing process. A pairing request will be sent every 200ms for the
+*   Start the pairing process. A pairing request will be sent every 100ms for the
 *   specified number of attemps.
 *   
 *   Preconditions: None.
