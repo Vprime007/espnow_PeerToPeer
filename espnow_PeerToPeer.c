@@ -555,6 +555,7 @@ static void espnow_recv_callback(const esp_now_recv_info_t *pInfo,
     }
 }
 
+
 /***************************************************************************//*!
 *  \brief ESPNOW send callback
 *
@@ -617,6 +618,7 @@ static void tEspnowTask(void *pvParameters){
         //Send all queued tx packets
         if(pdTRUE == xQueueReceive(espnow_tx_queue_handle, &tx_packet, 50/portTICK_PERIOD_MS)){
 
+            //Send TX packet to peer via espnow
             esp_now_send(tx_packet.mac_addr, tx_packet.pMsg, tx_packet.len);
 
             //If it was a flush cmd -> remove peer infos
@@ -817,7 +819,6 @@ esp_err_t ESPNOW_FlushPeer(void){
 
     //Check if currently paired
     if(current_status == ESPNOW_STATUS_PAIRED){
-
         //Send a flush cmd to peer
         if(!postFlushPeer()){
             return ESP_FAIL;
@@ -902,7 +903,6 @@ esp_err_t ESPNOW_SendData(const uint8_t *pData, uint16_t len){
 
     //Post tx packet to the queue
     if(pdTRUE != xQueueSend(espnow_tx_queue_handle, &packet_to_send, 0)){
-
         //Free allocated ressources
         free(pTx_msg);
         pTx_msg = NULL;
