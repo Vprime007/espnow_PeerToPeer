@@ -75,8 +75,13 @@ static void espnow_recv_callback(const esp_now_recv_info_t *pInfo,
                                  const uint8_t *pData,
                                  int len);
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+static void espnow_send_callback(const esp_now_send_info_t *pInfo,
+                                 esp_now_send_status_t status);
+#else
 static void espnow_send_callback(const uint8_t *pMac_dest,
                                  esp_now_send_status_t status);
+#endif//ESP_IDF_VERSION
 
 static void pairingTimerCallback(TimerHandle_t xTimer);
 
@@ -561,11 +566,19 @@ static void espnow_recv_callback(const esp_now_recv_info_t *pInfo,
 *   Optional espnow recv callback.
 *
 *******************************************************************************/
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+static void espnow_send_callback(const esp_now_send_info_t *pInfo,
+                                 esp_now_send_status_t status){
+
+    //Do nothing for the moment...
+}
+#else
 static void espnow_send_callback(const uint8_t *pMac_dest,
                                  esp_now_send_status_t status){
 
     //Do nothing for the moment...
 }
+#endif//ESP_IDF_VERSION
 
 static void pairingTimerCallback(TimerHandle_t xTimer){
 
